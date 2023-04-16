@@ -1,0 +1,70 @@
+import boto3
+import json
+
+# Create a DynamoDB client
+dynamodb = boto3.client('dynamodb')
+
+# Name of the DynamoDB table to use
+table_name = 'swipes'
+
+# Check if the table exists, create it if it doesn't exist
+try:
+    response = dynamodb.describe_table(TableName=table_name)
+except dynamodb.exceptions.ResourceNotFoundException:
+    # Table doesn't exist, create it
+    response = dynamodb.create_table(
+        TableName=table_name,
+        KeySchema=[
+            {
+                'AttributeName': 'swiper',
+                'KeyType': 'HASH'  # Partition key
+            },
+            {
+                'AttributeName': 'swipee',
+                'KeyType': 'RANGE'  # Sort key
+            }
+        ],
+        AttributeDefinitions=[
+            {
+                'AttributeName': 'swiper',
+                'AttributeType': 'N'
+            },
+            {
+                'AttributeName': 'swipee',
+                'AttributeType': 'N'
+            }
+        ],
+        ProvisionedThroughput={
+            'ReadCapacityUnits': 5,
+            'WriteCapacityUnits': 5
+        }
+    )
+
+# Wait for the table to be created
+dynamodb.get_waiter('table_exists').wait(TableName=table_name)
+
+def lambda_handler(event, context):
+    print(event)
+    # Parse request data from API Gateway
+    # request_data = json.loads(event['body'])
+    swipe = event['swipe']
+    swiper = int(event['swiper'])
+    swipee = int(event['swipee'])
+    comment = event['comment']
+
+    # Save data to DynamoDB
+    response = dynamodb.put_item(
+        TableName=table_name,
+        Item={
+            'swipe': {'S': swipe},
+            'swiper': {'N': str(swiper)},
+            'swipee': {'N': str(swipee)},
+            'comment': {'S': comment}
+        }
+    )
+
+    # Return a response to API Gateway
+    return {
+        'statusCode': 200,
+        'body': json.dumps({'message': 'Data saved to DynamoDB'})
+    }
